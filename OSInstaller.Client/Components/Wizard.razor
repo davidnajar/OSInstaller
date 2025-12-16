@@ -3,8 +3,8 @@
 @inject HttpClient Http
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
-<div class="wizard-container">
-    <div class="wizard-card">
+<div class="min-h-screen bg-base-200 flex items-center justify-center p-4">
+    <div class="card bg-base-100 shadow-xl w-full max-w-4xl">
         <div class="card-body">
             @if (_isLoading)
             {
@@ -306,9 +306,9 @@
         {
             await Http.PostAsJsonAsync("/api/wizard/state", _state);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"Failed to save state: {ex.Message}");
+            // Silently fail - state save is not critical
         }
     }
 
