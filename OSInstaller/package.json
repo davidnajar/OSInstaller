@@ -1,0 +1,20 @@
+{
+  "name": "osinstaller",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "css:build": "tailwindcss -i ./Styles/app.css -o ./wwwroot/app.css --minify",
+    "css:watch": "tailwindcss -i ./Styles/app.css -o ./wwwroot/app.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.10",
+    "autoprefixer": "^10.4.23",
+    "daisyui": "^5.5.14",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19"
+  }
+}

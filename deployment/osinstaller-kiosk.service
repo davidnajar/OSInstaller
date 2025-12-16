@@ -1,0 +1,15 @@
+[Unit]
+Description=OS Installer Kiosk Mode
+After=osinstaller.service
+Requires=osinstaller.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/chromium --kiosk --app=http://localhost:5070 --noerrdialogs --disable-infobars --disable-session-crashed-bubble --disable-restore-session-state
+Restart=always
+RestartSec=5
+User=installer
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=graphical.target

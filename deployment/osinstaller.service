@@ -1,0 +1,17 @@
+[Unit]
+Description=OS Installer Backend Service
+After=network.target
+
+[Service]
+Type=notify
+WorkingDirectory=/opt/osinstaller
+ExecStart=/usr/bin/dotnet /opt/osinstaller/OSInstaller.dll --urls=http://localhost:5070
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=osinstaller
+User=installer
+Environment=ASPNETCORE_ENVIRONMENT=Production
+
+[Install]
+WantedBy=multi-user.target
