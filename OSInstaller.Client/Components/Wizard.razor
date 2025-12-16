@@ -62,8 +62,26 @@
                             <p class="text-base-content/60 mb-6">@currentPage.Description</p>
                         }
 
+                        <!-- Feature Toggle -->
+                        @if (currentPage.FeatureToggle != null)
+                        {
+                            <div class="card bg-base-200 shadow-sm mb-6 p-6">
+                                <div class="form-control">
+                                    <label class="label cursor-pointer justify-start gap-4">
+                                        <input type="checkbox" 
+                                               class="toggle toggle-lg toggle-primary"
+                                               checked="@IsPageFeatureEnabled(currentPage.Id)"
+                                               @onchange="@(e => TogglePageFeature(currentPage.Id, e.Value?.ToString() == "True"))" />
+                                        <span class="label-text text-lg font-semibold">@currentPage.FeatureToggle.Label</span>
+                                    </label>
+                                </div>
+                            </div>
+                        }
+
                         <!-- Fields -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        @if (currentPage.FeatureToggle == null || IsPageFeatureEnabled(currentPage.Id))
+                        {
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             @foreach (var field in currentPage.Fields)
                             {
                                 <div class="form-control w-full @(ShouldFieldBeFullWidth(field) ? "md:col-span-2" : "")">
@@ -130,6 +148,16 @@
                                 </div>
                             }
                         </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-info">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span>This feature is disabled. Enable it above to configure.</span>
+                            </div>
+                        }
                     </div>
 
                     <!-- Divider -->
@@ -218,6 +246,15 @@
                 {
                     foreach (var page in _spec.Pages)
                     {
+                        // Initialize feature toggle state
+                        if (page.FeatureToggle != null)
+                        {
+                            if (!_state.PageFeatureEnabled.ContainsKey(page.Id))
+                            {
+                                _state.PageFeatureEnabled[page.Id] = page.FeatureToggle.Default;
+                            }
+                        }
+                        
                         foreach (var field in page.Fields)
                         {
                             if (!string.IsNullOrEmpty(field.DefaultValue))
@@ -280,6 +317,23 @@
         return false;
     }
 
+    private bool IsPageFeatureEnabled(string pageId)
+    {
+        if (_state.PageFeatureEnabled.TryGetValue(pageId, out var enabled))
+        {
+            return enabled;
+        }
+        // Default to true if not set (backward compatibility)
+        return true;
+    }
+
+    private void TogglePageFeature(string pageId, bool enabled)
+    {
+        _state.PageFeatureEnabled[pageId] = enabled;
+        _validationErrors.Clear();
+        _ = SaveStateAsync();
+    }
+
     private string? GetFieldError(Field field)
     {
         if (_validationErrors.TryGetValue(field.Id, out var error))
@@ -297,6 +351,12 @@
 
     private bool IsPageValid(Page page)
     {
+        // Skip validation if page feature is disabled
+        if (page.FeatureToggle != null && !IsPageFeatureEnabled(page.Id))
+        {
+            return true; // Disabled pages are always valid
+        }
+        
         // Check if all required fields are filled and valid without setting error messages
         foreach (var field in page.Fields)
         {
@@ -343,6 +403,12 @@
 
     private bool ValidatePage(Page page)
     {
+        // Skip validation if page feature is disabled
+        if (page.FeatureToggle != null && !IsPageFeatureEnabled(page.Id))
+        {
+            return true; // Disabled pages are always valid
+        }
+        
         bool isValid = true;
 
         foreach (var field in page.Fields)
