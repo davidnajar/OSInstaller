@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 using OSInstaller.Models;
 using OSInstaller.Services;
@@ -12,15 +13,18 @@ public class WizardController : ControllerBase
     private readonly WizardStateService _stateService;
     private readonly ILogger<WizardController> _logger;
     private readonly IWebHostEnvironment _environment;
+    private readonly InstallerOptions _options;
 
     public WizardController(
         WizardStateService stateService,
         ILogger<WizardController> logger,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        IOptions<InstallerOptions> options)
     {
         _stateService = stateService;
         _logger = logger;
         _environment = environment;
+        _options = options.Value;
     }
 
     [HttpGet("state")]
@@ -95,9 +99,10 @@ public class WizardController : ControllerBase
             }
 
             // Save the final output
-            var outputPath = _environment.IsDevelopment() 
-                ? Path.Combine(_environment.ContentRootPath, "output.json")
-                : "/var/lib/installer/output.json";
+            var outputPath = _options.OutputPath 
+                ?? (_environment.IsDevelopment() 
+                    ? Path.Combine(_environment.ContentRootPath, "output.json")
+                    : "/var/lib/installer/output.json");
             var directory = Path.GetDirectoryName(outputPath);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
