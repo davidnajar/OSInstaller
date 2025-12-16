@@ -661,15 +661,24 @@
             return;
         }
 
-        // Enter key acts as "Next" button
+        // Enter key acts as "Next" button or "Complete" on summary page
         if (e.Key == "Enter" && !e.AltKey)
         {
-            if (_spec != null && _state.CurrentPage < _spec.Pages.Count)
+            if (_spec != null)
             {
-                var currentPage = _spec.Pages[_state.CurrentPage];
-                if (IsPageValid(currentPage))
+                // If on summary page, complete installation
+                if (_state.CurrentPage == _spec.Pages.Count)
                 {
-                    if (_state.CurrentPage < _spec.Pages.Count - 1)
+                    if (!_isCompleting)
+                    {
+                        _ = Complete();
+                    }
+                }
+                // If on regular page, validate and move to next page or summary
+                else if (_state.CurrentPage < _spec.Pages.Count)
+                {
+                    var currentPage = _spec.Pages[_state.CurrentPage];
+                    if (IsPageValid(currentPage))
                     {
                         NextPage();
                     }
