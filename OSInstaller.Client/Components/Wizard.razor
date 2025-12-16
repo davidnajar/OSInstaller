@@ -292,39 +292,48 @@
 
     private bool IsPageValid(Page page)
     {
-        // Check if all required fields are filled and valid
+        // Check if all required fields are filled and valid without setting error messages
         foreach (var field in page.Fields)
         {
-            if (field.Required && !_state.Values.ContainsKey(field.Id))
+            var error = ValidateField(field);
+            if (error != null)
             {
                 return false;
             }
-            else if (_state.Values.TryGetValue(field.Id, out var value))
-            {
-                var stringValue = value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+        }
+        return true;
+    }
 
-                if (field.Required && string.IsNullOrWhiteSpace(stringValue))
+    private string? ValidateField(Field field)
+    {
+        if (field.Required && !_state.Values.ContainsKey(field.Id))
+        {
+            return field.ErrorMessage ?? $"{field.Label} is required";
+        }
+        else if (_state.Values.TryGetValue(field.Id, out var value))
+        {
+            var stringValue = value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+
+            if (field.Required && string.IsNullOrWhiteSpace(stringValue))
+            {
+                return field.ErrorMessage ?? $"{field.Label} is required";
+            }
+            else if (field.Type == "ip" && !string.IsNullOrWhiteSpace(stringValue))
+            {
+                if (!System.Net.IPAddress.TryParse(stringValue, out _))
                 {
-                    return false;
+                    return "Invalid IP address";
                 }
-                else if (field.Type == "ip" && !string.IsNullOrWhiteSpace(stringValue))
+            }
+            else if (field.Type == "regex" && !string.IsNullOrWhiteSpace(field.Pattern) && !string.IsNullOrWhiteSpace(stringValue))
+            {
+                if (!System.Text.RegularExpressions.Regex.IsMatch(stringValue, field.Pattern))
                 {
-                    if (!System.Net.IPAddress.TryParse(stringValue, out _))
-                    {
-                        return false;
-                    }
-                }
-                else if (field.Type == "regex" && !string.IsNullOrWhiteSpace(field.Pattern) && !string.IsNullOrWhiteSpace(stringValue))
-                {
-                    if (!System.Text.RegularExpressions.Regex.IsMatch(stringValue, field.Pattern))
-                    {
-                        return false;
-                    }
+                    return field.ErrorMessage ?? "Invalid format";
                 }
             }
         }
-
-        return true;
+        return null;
     }
 
     private bool ValidatePage(Page page)
@@ -333,36 +342,11 @@
 
         foreach (var field in page.Fields)
         {
-            if (field.Required && !_state.Values.ContainsKey(field.Id))
+            var error = ValidateField(field);
+            if (error != null)
             {
-                _validationErrors[field.Id] = field.ErrorMessage ?? $"{field.Label} is required";
+                _validationErrors[field.Id] = error;
                 isValid = false;
-            }
-            else if (_state.Values.TryGetValue(field.Id, out var value))
-            {
-                var stringValue = value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
-
-                if (field.Required && string.IsNullOrWhiteSpace(stringValue))
-                {
-                    _validationErrors[field.Id] = field.ErrorMessage ?? $"{field.Label} is required";
-                    isValid = false;
-                }
-                else if (field.Type == "ip" && !string.IsNullOrWhiteSpace(stringValue))
-                {
-                    if (!System.Net.IPAddress.TryParse(stringValue, out _))
-                    {
-                        _validationErrors[field.Id] = "Invalid IP address";
-                        isValid = false;
-                    }
-                }
-                else if (field.Type == "regex" && !string.IsNullOrWhiteSpace(field.Pattern) && !string.IsNullOrWhiteSpace(stringValue))
-                {
-                    if (!System.Text.RegularExpressions.Regex.IsMatch(stringValue, field.Pattern))
-                    {
-                        _validationErrors[field.Id] = field.ErrorMessage ?? "Invalid format";
-                        isValid = false;
-                    }
-                }
             }
         }
 
