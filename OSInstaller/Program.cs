@@ -1,10 +1,19 @@
 using OSInstaller.Components;
+using OSInstaller.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
+
+// Add API controllers
+builder.Services.AddControllers();
+
+// Add installer services
+builder.Services.AddSingleton<SpecLoaderService>();
+builder.Services.AddSingleton<SpecMergerService>();
+builder.Services.AddSingleton<WizardStateService>();
 
 var app = builder.Build();
 
@@ -28,5 +37,8 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(OSInstaller.Client._Imports).Assembly);
+
+// Map API controllers
+app.MapControllers();
 
 app.Run();

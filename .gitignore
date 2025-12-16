@@ -52,3 +52,12 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Node.js dependencies
+node_modules/
+package-lock.json
+
+# Runtime state files
+/var/lib/installer/
+wizard-state.json
+output.json

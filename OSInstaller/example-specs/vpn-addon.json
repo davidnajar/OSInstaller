@@ -1,0 +1,35 @@
+{
+  "contribId": "vpn.addon",
+  "priority": 300,
+  "pagePatches": [
+    {
+      "pageId": "network",
+      "insertFieldsAfter": "net.ip",
+      "fields": [
+        {
+          "id": "vpn.enabled",
+          "label": "Enable VPN",
+          "type": "bool",
+          "jsonPath": "$.vpn.enabled",
+          "defaultValue": "false",
+          "description": "Enable VPN connection"
+        },
+        {
+          "id": "vpn.server",
+          "label": "VPN Server",
+          "type": "text",
+          "required": false,
+          "jsonPath": "$.vpn.server",
+          "placeholder": "vpn.example.com",
+          "description": "VPN server address (only if VPN is enabled)"
+        }
+      ]
+    }
+  ],
+  "outputTemplatePatch": {
+    "vpn": {
+      "enabled": false,
+      "server": ""
+    }
+  }
+}

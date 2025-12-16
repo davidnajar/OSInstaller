@@ -1,0 +1,403 @@
+@using OSInstaller.Client.Models
+@using System.Text.Json
+@inject HttpClient Http
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+<div class="wizard-container">
+    <div class="wizard-card">
+        <div class="card-body">
+            @if (_isLoading)
+            {
+                <div class="flex justify-center items-center p-12">
+                    <span class="loading loading-spinner loading-lg"></span>
+                </div>
+            }
+            else if (_error != null)
+            {
+                <div class="alert alert-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>@_error</span>
+                </div>
+            }
+            else if (_spec != null && _spec.Pages.Count > 0)
+            {
+                <h2 class="card-title text-3xl mb-6">OS Installer Wizard</h2>
+
+                <!-- Progress Steps -->
+                <ul class="steps steps-horizontal w-full mb-8">
+                    @for (int i = 0; i < _spec.Pages.Count; i++)
+                    {
+                        var currentPage = _spec.Pages[i];
+                        var index = i;
+                        <li class="step @(index <= _state.CurrentPage ? "step-primary" : "")" 
+                            @onclick="@(() => GoToPage(index))">
+                            @currentPage.Title
+                        </li>
+                    }
+                </ul>
+
+                <!-- Current Page -->
+                @if (_state.CurrentPage < _spec.Pages.Count)
+                {
+                    var currentPage = _spec.Pages[_state.CurrentPage];
+                    <div class="mb-6">
+                        <h3 class="text-2xl font-bold mb-2">@currentPage.Title</h3>
+                        @if (!string.IsNullOrEmpty(currentPage.Description))
+                        {
+                            <p class="text-base-content/70 mb-4">@currentPage.Description</p>
+                        }
+
+                        <!-- Fields -->
+                        <div class="space-y-4">
+                            @foreach (var field in currentPage.Fields)
+                            {
+                                <div class="form-control w-full">
+                                    <label class="label">
+                                        <span class="label-text">
+                                            @field.Label
+                                            @if (field.Required)
+                                            {
+                                                <span class="text-error">*</span>
+                                            }
+                                        </span>
+                                    </label>
+
+                                    @if (field.Type == "bool")
+                                    {
+                                        <input type="checkbox" 
+                                               class="checkbox checkbox-primary"
+                                               checked="@GetBoolValue(field.Id)"
+                                               @onchange="@(e => SetValue(field.Id, e.Value?.ToString() == "True"))" />
+                                    }
+                                    else if (field.Type == "number")
+                                    {
+                                        <input type="number" 
+                                               class="input input-bordered w-full"
+                                               placeholder="@field.Placeholder"
+                                               value="@GetStringValue(field.Id)"
+                                               min="@field.Min"
+                                               max="@field.Max"
+                                               @onchange="@(e => SetValue(field.Id, e.Value?.ToString()))" />
+                                    }
+                                    else
+                                    {
+                                        <input type="text" 
+                                               class="input input-bordered w-full @(GetFieldError(field) != null ? "input-error" : "")"
+                                               placeholder="@field.Placeholder"
+                                               value="@GetStringValue(field.Id)"
+                                               @onchange="@(e => SetValue(field.Id, e.Value?.ToString()))" />
+                                    }
+
+                                    @if (!string.IsNullOrEmpty(field.Description))
+                                    {
+                                        <label class="label">
+                                            <span class="label-text-alt">@field.Description</span>
+                                        </label>
+                                    }
+
+                                    @if (GetFieldError(field) != null)
+                                    {
+                                        <label class="label">
+                                            <span class="label-text-alt text-error">@GetFieldError(field)</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Navigation Buttons -->
+                    <div class="card-actions justify-between mt-8">
+                        @if (_state.CurrentPage > 0)
+                        {
+                            <button class="btn btn-outline" @onclick="PreviousPage">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                                </svg>
+                                Previous
+                            </button>
+                        }
+                        else
+                        {
+                            <div></div>
+                        }
+
+                        @if (_state.CurrentPage < _spec.Pages.Count - 1)
+                        {
+                            <button class="btn btn-primary" @onclick="NextPage">
+                                Next
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-success" @onclick="Complete" disabled="@_isCompleting">
+                                @if (_isCompleting)
+                                {
+                                    <span class="loading loading-spinner"></span>
+                                }
+                                Complete Installation
+                            </button>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="alert alert-warning">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>No installer specifications found. Please add spec files to the configured directories.</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private UnifiedSpec? _spec;
+    private WizardState _state = new();
+    private bool _isLoading = true;
+    private bool _isCompleting = false;
+    private string? _error;
+    private Dictionary<string, string?> _validationErrors = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Load spec
+            _spec = await Http.GetFromJsonAsync<UnifiedSpec>("/api/spec/unified");
+
+            // Load saved state
+            var savedState = await Http.GetFromJsonAsync<WizardState>("/api/wizard/state");
+            if (savedState != null && savedState.Values.Count > 0)
+            {
+                _state = savedState;
+            }
+            else
+            {
+                // Initialize with default values
+                if (_spec != null)
+                {
+                    foreach (var page in _spec.Pages)
+                    {
+                        foreach (var field in page.Fields)
+                        {
+                            if (!string.IsNullOrEmpty(field.DefaultValue))
+                            {
+                                SetValue(field.Id, field.DefaultValue);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load installer configuration: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void SetValue(string fieldId, object? value)
+    {
+        if (value == null)
+        {
+            _state.Values.Remove(fieldId);
+        }
+        else
+        {
+            _state.Values[fieldId] = JsonSerializer.SerializeToElement(value);
+        }
+
+        // Clear validation error for this field
+        _validationErrors.Remove(fieldId);
+
+        // Save state async (fire and forget)
+        _ = SaveStateAsync();
+    }
+
+    private string GetStringValue(string fieldId)
+    {
+        if (_state.Values.TryGetValue(fieldId, out var value))
+        {
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                return value.GetString() ?? "";
+            }
+            return value.ToString();
+        }
+        return "";
+    }
+
+    private bool GetBoolValue(string fieldId)
+    {
+        if (_state.Values.TryGetValue(fieldId, out var value))
+        {
+            if (value.ValueKind == JsonValueKind.True) return true;
+            if (value.ValueKind == JsonValueKind.False) return false;
+        }
+        return false;
+    }
+
+    private string? GetFieldError(Field field)
+    {
+        if (_validationErrors.TryGetValue(field.Id, out var error))
+        {
+            return error;
+        }
+        return null;
+    }
+
+    private bool ValidatePage(Page page)
+    {
+        bool isValid = true;
+
+        foreach (var field in page.Fields)
+        {
+            if (field.Required && !_state.Values.ContainsKey(field.Id))
+            {
+                _validationErrors[field.Id] = field.ErrorMessage ?? $"{field.Label} is required";
+                isValid = false;
+            }
+            else if (_state.Values.TryGetValue(field.Id, out var value))
+            {
+                var stringValue = value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+
+                if (field.Required && string.IsNullOrWhiteSpace(stringValue))
+                {
+                    _validationErrors[field.Id] = field.ErrorMessage ?? $"{field.Label} is required";
+                    isValid = false;
+                }
+                else if (field.Type == "ip" && !string.IsNullOrWhiteSpace(stringValue))
+                {
+                    if (!System.Net.IPAddress.TryParse(stringValue, out _))
+                    {
+                        _validationErrors[field.Id] = "Invalid IP address";
+                        isValid = false;
+                    }
+                }
+                else if (field.Type == "regex" && !string.IsNullOrWhiteSpace(field.Pattern) && !string.IsNullOrWhiteSpace(stringValue))
+                {
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(stringValue, field.Pattern))
+                    {
+                        _validationErrors[field.Id] = field.ErrorMessage ?? "Invalid format";
+                        isValid = false;
+                    }
+                }
+            }
+        }
+
+        return isValid;
+    }
+
+    private async Task SaveStateAsync()
+    {
+        try
+        {
+            await Http.PostAsJsonAsync("/api/wizard/state", _state);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to save state: {ex.Message}");
+        }
+    }
+
+    private void GoToPage(int pageIndex)
+    {
+        if (pageIndex >= 0 && pageIndex < (_spec?.Pages.Count ?? 0))
+        {
+            // Only allow going back or to already visited pages
+            if (pageIndex <= _state.CurrentPage)
+            {
+                _state.CurrentPage = pageIndex;
+                _validationErrors.Clear();
+            }
+        }
+    }
+
+    private void PreviousPage()
+    {
+        if (_state.CurrentPage > 0)
+        {
+            _state.CurrentPage--;
+            _validationErrors.Clear();
+            _ = SaveStateAsync();
+        }
+    }
+
+    private void NextPage()
+    {
+        if (_spec == null) return;
+
+        var currentPage = _spec.Pages[_state.CurrentPage];
+        if (!ValidatePage(currentPage))
+        {
+            StateHasChanged();
+            return;
+        }
+
+        if (_state.CurrentPage < _spec.Pages.Count - 1)
+        {
+            _state.CurrentPage++;
+            _validationErrors.Clear();
+            _ = SaveStateAsync();
+        }
+    }
+
+    private async Task Complete()
+    {
+        if (_spec == null) return;
+
+        var currentPage = _spec.Pages[_state.CurrentPage];
+        if (!ValidatePage(currentPage))
+        {
+            StateHasChanged();
+            return;
+        }
+
+        _isCompleting = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new
+            {
+                Values = _state.Values,
+                Pages = _spec.Pages,
+                OutputTemplate = _spec.OutputTemplate
+            };
+
+            var response = await Http.PostAsJsonAsync("/api/wizard/generate", request);
+            if (response.IsSuccessStatusCode)
+            {
+                _error = null;
+                // Show success message
+                _spec = null;
+                _state = new WizardState { CurrentPage = -1 };
+            }
+            else
+            {
+                _error = "Failed to generate output. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to complete installation: {ex.Message}";
+        }
+        finally
+        {
+            _isCompleting = false;
+            StateHasChanged();
+        }
+    }
+}

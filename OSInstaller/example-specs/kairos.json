@@ -1,0 +1,36 @@
+{
+  "contribId": "kairos.layer",
+  "priority": 200,
+  "pages": [
+    {
+      "id": "kairos",
+      "title": "Kairos Configuration",
+      "order": 30,
+      "description": "Configure Kairos-specific settings",
+      "fields": [
+        {
+          "id": "kairos.version",
+          "label": "Kairos Version",
+          "type": "text",
+          "required": true,
+          "jsonPath": "$.kairos.version",
+          "defaultValue": "latest",
+          "placeholder": "latest"
+        },
+        {
+          "id": "kairos.autoUpdate",
+          "label": "Enable Auto-Update",
+          "type": "bool",
+          "jsonPath": "$.kairos.autoUpdate",
+          "defaultValue": "false"
+        }
+      ]
+    }
+  ],
+  "outputTemplatePatch": {
+    "kairos": {
+      "version": "latest",
+      "autoUpdate": false
+    }
+  }
+}

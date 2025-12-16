@@ -1,0 +1,68 @@
+{
+  "contribId": "net.base",
+  "priority": 100,
+  "pages": [
+    {
+      "id": "system",
+      "title": "System Configuration",
+      "order": 10,
+      "description": "Configure basic system settings",
+      "fields": [
+        {
+          "id": "sys.hostname",
+          "label": "Hostname",
+          "type": "text",
+          "required": true,
+          "jsonPath": "$.system.hostname",
+          "errorMessage": "Hostname is required",
+          "placeholder": "my-server",
+          "description": "The hostname for this system"
+        },
+        {
+          "id": "sys.timezone",
+          "label": "Timezone",
+          "type": "text",
+          "required": true,
+          "jsonPath": "$.system.timezone",
+          "defaultValue": "UTC",
+          "placeholder": "UTC"
+        }
+      ]
+    },
+    {
+      "id": "network",
+      "title": "Network Configuration",
+      "order": 20,
+      "description": "Configure network settings",
+      "fields": [
+        {
+          "id": "net.dhcp",
+          "label": "Use DHCP",
+          "type": "bool",
+          "jsonPath": "$.network.dhcp",
+          "defaultValue": "true",
+          "description": "Enable automatic IP configuration"
+        },
+        {
+          "id": "net.ip",
+          "label": "IP Address",
+          "type": "ip",
+          "required": false,
+          "jsonPath": "$.network.ip",
+          "placeholder": "192.168.1.100",
+          "description": "Static IP address (only if DHCP is disabled)"
+        }
+      ]
+    }
+  ],
+  "outputTemplatePatch": {
+    "system": {
+      "hostname": "",
+      "timezone": "UTC"
+    },
+    "network": {
+      "dhcp": true,
+      "ip": ""
+    }
+  }
+}
