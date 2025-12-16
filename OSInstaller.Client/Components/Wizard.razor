@@ -3,9 +3,9 @@
 @inject HttpClient Http
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
-<div class="min-h-screen bg-base-200 flex items-center justify-center p-4">
+<div class="min-h-screen bg-base-200 flex items-center justify-center px-4 py-8">
     <div class="card bg-base-100 shadow-xl w-full max-w-4xl">
-        <div class="card-body">
+        <div class="card-body p-8 md:p-12">
             @if (_isLoading)
             {
                 <div class="flex justify-center items-center p-12">
@@ -26,7 +26,7 @@
                 <h2 class="card-title text-3xl mb-6">OS Installer Wizard</h2>
 
                 <!-- Progress Steps -->
-                <ul class="steps steps-horizontal w-full mb-8">
+                <ul class="steps steps-horizontal w-full mb-4">
                     @for (int i = 0; i < _spec.Pages.Count; i++)
                     {
                         var currentPage = _spec.Pages[i];
@@ -38,48 +38,73 @@
                     }
                 </ul>
 
+                <!-- Progress Bar -->
+                <div class="mb-6">
+                    <progress class="progress progress-primary w-full" 
+                              value="@((_state.CurrentPage + 1) * 100 / _spec.Pages.Count)" 
+                              max="100"></progress>
+                </div>
+
                 <!-- Current Page -->
                 @if (_state.CurrentPage < _spec.Pages.Count)
                 {
                     var currentPage = _spec.Pages[_state.CurrentPage];
-                    <div class="mb-6">
+                    <div class="mb-8">
+                        <!-- Step Counter -->
+                        <div class="text-sm text-base-content/60 mb-2">
+                            Step @(_state.CurrentPage + 1) of @_spec.Pages.Count
+                        </div>
+                        
+                        <!-- Page Title and Description -->
                         <h3 class="text-2xl font-bold mb-2">@currentPage.Title</h3>
                         @if (!string.IsNullOrEmpty(currentPage.Description))
                         {
-                            <p class="text-base-content/70 mb-4">@currentPage.Description</p>
+                            <p class="text-base-content/60 mb-6">@currentPage.Description</p>
                         }
 
                         <!-- Fields -->
-                        <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             @foreach (var field in currentPage.Fields)
                             {
-                                <div class="form-control w-full">
+                                <div class="form-control w-full @(ShouldFieldBeFullWidth(field) ? "md:col-span-2" : "")">
                                     <label class="label">
-                                        <span class="label-text">
+                                        <span class="label-text font-medium">
                                             @field.Label
                                             @if (field.Required)
                                             {
-                                                <span class="text-error">*</span>
+                                                <span class="text-error ml-1">*</span>
                                             }
                                         </span>
                                     </label>
 
                                     @if (field.Type == "bool")
                                     {
-                                        <input type="checkbox" 
-                                               class="checkbox checkbox-primary"
-                                               checked="@GetBoolValue(field.Id)"
-                                               @onchange="@(e => SetValue(field.Id, e.Value?.ToString() == "True"))" />
+                                        <div class="flex items-center gap-3">
+                                            <input type="checkbox" 
+                                                   class="toggle toggle-primary"
+                                                   checked="@GetBoolValue(field.Id)"
+                                                   @onchange="@(e => SetValue(field.Id, e.Value?.ToString() == "True"))" />
+                                            @if (!string.IsNullOrEmpty(field.Description))
+                                            {
+                                                <span class="label-text-alt text-base-content/60">@field.Description</span>
+                                            }
+                                        </div>
                                     }
                                     else if (field.Type == "number")
                                     {
                                         <input type="number" 
-                                               class="input input-bordered w-full"
+                                               class="input input-bordered w-full @(GetFieldError(field) != null ? "input-error" : "")"
                                                placeholder="@field.Placeholder"
                                                value="@GetStringValue(field.Id)"
                                                min="@field.Min"
                                                max="@field.Max"
                                                @onchange="@(e => SetValue(field.Id, e.Value?.ToString()))" />
+                                        @if (!string.IsNullOrEmpty(field.Description))
+                                        {
+                                            <label class="label">
+                                                <span class="label-text-alt text-base-content/60">@field.Description</span>
+                                            </label>
+                                        }
                                     }
                                     else
                                     {
@@ -88,19 +113,18 @@
                                                placeholder="@field.Placeholder"
                                                value="@GetStringValue(field.Id)"
                                                @onchange="@(e => SetValue(field.Id, e.Value?.ToString()))" />
-                                    }
-
-                                    @if (!string.IsNullOrEmpty(field.Description))
-                                    {
-                                        <label class="label">
-                                            <span class="label-text-alt">@field.Description</span>
-                                        </label>
+                                        @if (!string.IsNullOrEmpty(field.Description))
+                                        {
+                                            <label class="label">
+                                                <span class="label-text-alt text-base-content/60">@field.Description</span>
+                                            </label>
+                                        }
                                     }
 
                                     @if (GetFieldError(field) != null)
                                     {
                                         <label class="label">
-                                            <span class="label-text-alt text-error">@GetFieldError(field)</span>
+                                            <span class="label-text-alt text-error font-medium">@GetFieldError(field)</span>
                                         </label>
                                     }
                                 </div>
@@ -108,12 +132,15 @@
                         </div>
                     </div>
 
+                    <!-- Divider -->
+                    <div class="divider"></div>
+
                     <!-- Navigation Buttons -->
-                    <div class="card-actions justify-between mt-8">
+                    <div class="flex justify-between items-center">
                         @if (_state.CurrentPage > 0)
                         {
-                            <button class="btn btn-outline" @onclick="PreviousPage">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <button class="btn btn-ghost" @onclick="PreviousPage">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                                 </svg>
                                 Previous
@@ -126,16 +153,20 @@
 
                         @if (_state.CurrentPage < _spec.Pages.Count - 1)
                         {
-                            <button class="btn btn-primary" @onclick="NextPage">
+                            <button class="btn btn-primary" 
+                                    @onclick="NextPage"
+                                    disabled="@(!IsPageValid(currentPage))">
                                 Next
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                                 </svg>
                             </button>
                         }
                         else
                         {
-                            <button class="btn btn-success" @onclick="Complete" disabled="@_isCompleting">
+                            <button class="btn btn-success" 
+                                    @onclick="Complete" 
+                                    disabled="@(_isCompleting || !IsPageValid(currentPage))">
                                 @if (_isCompleting)
                                 {
                                     <span class="loading loading-spinner"></span>
@@ -258,42 +289,69 @@
         return null;
     }
 
+    private bool ShouldFieldBeFullWidth(Field field)
+    {
+        // Boolean fields and fields with descriptions should span full width for better UX
+        return field.Type == "bool" || !string.IsNullOrEmpty(field.Description);
+    }
+
+    private bool IsPageValid(Page page)
+    {
+        // Check if all required fields are filled and valid without setting error messages
+        foreach (var field in page.Fields)
+        {
+            var error = ValidateField(field);
+            if (error != null)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private string? ValidateField(Field field)
+    {
+        if (field.Required && !_state.Values.ContainsKey(field.Id))
+        {
+            return field.ErrorMessage ?? $"{field.Label} is required";
+        }
+        else if (_state.Values.TryGetValue(field.Id, out var value))
+        {
+            var stringValue = value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+
+            if (field.Required && string.IsNullOrWhiteSpace(stringValue))
+            {
+                return field.ErrorMessage ?? $"{field.Label} is required";
+            }
+            else if (field.Type == "ip" && !string.IsNullOrWhiteSpace(stringValue))
+            {
+                if (!System.Net.IPAddress.TryParse(stringValue, out _))
+                {
+                    return "Invalid IP address";
+                }
+            }
+            else if (field.Type == "regex" && !string.IsNullOrWhiteSpace(field.Pattern) && !string.IsNullOrWhiteSpace(stringValue))
+            {
+                if (!System.Text.RegularExpressions.Regex.IsMatch(stringValue, field.Pattern))
+                {
+                    return field.ErrorMessage ?? "Invalid format";
+                }
+            }
+        }
+        return null;
+    }
+
     private bool ValidatePage(Page page)
     {
         bool isValid = true;
 
         foreach (var field in page.Fields)
         {
-            if (field.Required && !_state.Values.ContainsKey(field.Id))
+            var error = ValidateField(field);
+            if (error != null)
             {
-                _validationErrors[field.Id] = field.ErrorMessage ?? $"{field.Label} is required";
+                _validationErrors[field.Id] = error;
                 isValid = false;
-            }
-            else if (_state.Values.TryGetValue(field.Id, out var value))
-            {
-                var stringValue = value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
-
-                if (field.Required && string.IsNullOrWhiteSpace(stringValue))
-                {
-                    _validationErrors[field.Id] = field.ErrorMessage ?? $"{field.Label} is required";
-                    isValid = false;
-                }
-                else if (field.Type == "ip" && !string.IsNullOrWhiteSpace(stringValue))
-                {
-                    if (!System.Net.IPAddress.TryParse(stringValue, out _))
-                    {
-                        _validationErrors[field.Id] = "Invalid IP address";
-                        isValid = false;
-                    }
-                }
-                else if (field.Type == "regex" && !string.IsNullOrWhiteSpace(field.Pattern) && !string.IsNullOrWhiteSpace(stringValue))
-                {
-                    if (!System.Text.RegularExpressions.Regex.IsMatch(stringValue, field.Pattern))
-                    {
-                        _validationErrors[field.Id] = field.ErrorMessage ?? "Invalid format";
-                        isValid = false;
-                    }
-                }
             }
         }
 
