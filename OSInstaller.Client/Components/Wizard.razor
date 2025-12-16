@@ -1,10 +1,12 @@
 @using OSInstaller.Client.Models
 @using System.Text.Json
+@using Microsoft.JSInterop
 @inject HttpClient Http
+@inject IJSRuntime JSRuntime
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
-<div class="min-h-screen bg-base-200 flex items-center justify-center px-4 py-8">
-    <div class="card bg-base-100 shadow-xl w-full max-w-4xl">
+<div class="min-h-screen bg-base-200 flex items-center justify-center px-4 py-8" @onkeydown="HandleKeyDown">
+    <div class="card bg-base-100 shadow-xl w-full max-w-4xl" tabindex="0">
         <div class="card-body p-8 md:p-12">
             @if (_isLoading)
             {
@@ -556,6 +558,39 @@
         catch (Exception)
         {
             // Silently fail - state save is not critical
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        // Don't handle keyboard shortcuts when typing in an input field
+        if (e.CtrlKey || e.ShiftKey || e.MetaKey)
+        {
+            return;
+        }
+
+        // Enter key acts as "Next" button
+        if (e.Key == "Enter" && !e.AltKey)
+        {
+            if (_spec != null && _state.CurrentPage < _spec.Pages.Count)
+            {
+                var currentPage = _spec.Pages[_state.CurrentPage];
+                if (IsPageValid(currentPage))
+                {
+                    if (_state.CurrentPage < _spec.Pages.Count - 1)
+                    {
+                        NextPage();
+                    }
+                }
+            }
+        }
+        // Alt+Backspace goes to previous page
+        else if (e.Key == "Backspace" && e.AltKey)
+        {
+            if (_state.CurrentPage > 0)
+            {
+                PreviousPage();
+            }
         }
     }
 
