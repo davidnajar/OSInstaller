@@ -577,11 +577,21 @@
             }
             else if (field.Type == "password")
             {
-                // Check if passwords match
-                var confirmValue = GetStringValue(field.Id + "_confirm");
-                if (stringValue != confirmValue)
+                // Check if passwords match (only if confirmation field has been filled)
+                if (_state.Values.ContainsKey(field.Id + "_confirm"))
                 {
-                    return "Passwords do not match";
+                    var confirmValue = GetStringValue(field.Id + "_confirm");
+                    if (!string.IsNullOrWhiteSpace(stringValue) && !string.IsNullOrWhiteSpace(confirmValue) && stringValue != confirmValue)
+                    {
+                        // Set error on confirmation field
+                        _validationErrors[field.Id + "_confirm"] = "Passwords do not match";
+                        return "Passwords do not match";
+                    }
+                    else
+                    {
+                        // Clear confirmation field error if passwords match
+                        _validationErrors.Remove(field.Id + "_confirm");
+                    }
                 }
             }
             else if (field.Type == "ip" && !string.IsNullOrWhiteSpace(stringValue))
@@ -597,21 +607,6 @@
                 {
                     return field.ErrorMessage ?? "Invalid format";
                 }
-            }
-        }
-        
-        // Also validate password confirmation field
-        if (field.Type == "password" && _state.Values.ContainsKey(field.Id + "_confirm"))
-        {
-            var password = GetStringValue(field.Id);
-            var confirmPassword = GetStringValue(field.Id + "_confirm");
-            if (password != confirmPassword)
-            {
-                _validationErrors[field.Id + "_confirm"] = "Passwords do not match";
-            }
-            else
-            {
-                _validationErrors.Remove(field.Id + "_confirm");
             }
         }
         
