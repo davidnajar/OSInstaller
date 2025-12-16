@@ -38,23 +38,26 @@
                             @currentPage.Title
                         </li>
                     }
+                    <li class="step @(_state.CurrentPage >= _spec.Pages.Count ? "step-primary" : "")">
+                        Summary
+                    </li>
                 </ul>
 
                 <!-- Progress Bar -->
                 <div class="mb-6">
                     <progress class="progress progress-primary w-full" 
-                              value="@((_state.CurrentPage + 1) * 100 / _spec.Pages.Count)" 
+                              value="@((_state.CurrentPage + 1) * 100 / (_spec.Pages.Count + 1))" 
                               max="100"></progress>
                 </div>
 
-                <!-- Current Page -->
+                <!-- Current Page or Summary -->
                 @if (_state.CurrentPage < _spec.Pages.Count)
                 {
                     var currentPage = _spec.Pages[_state.CurrentPage];
                     <div class="mb-8">
                         <!-- Step Counter -->
                         <div class="text-sm text-base-content/60 mb-2">
-                            Step @(_state.CurrentPage + 1) of @_spec.Pages.Count
+                            Step @(_state.CurrentPage + 1) of @(_spec.Pages.Count + 1)
                         </div>
                         
                         <!-- Page Title and Description -->
@@ -265,16 +268,105 @@
                         }
                         else
                         {
-                            <button class="btn btn-success" 
-                                    @onclick="Complete" 
-                                    disabled="@(_isCompleting || !IsPageValid(currentPage))">
-                                @if (_isCompleting)
-                                {
-                                    <span class="loading loading-spinner"></span>
-                                }
-                                Complete Installation
+                            <button class="btn btn-primary" 
+                                    @onclick="NextPage"
+                                    disabled="@(!IsPageValid(currentPage))">
+                                Review
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
                             </button>
                         }
+                    </div>
+                }
+                else if (_state.CurrentPage == _spec.Pages.Count)
+                {
+                    <!-- Summary Page -->
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold mb-2">Installation Summary</h3>
+                        <p class="text-base-content/60 mb-6">Please review your configuration before proceeding with the installation.</p>
+
+                        <!-- Summary Cards -->
+                        <div class="space-y-4">
+                            @foreach (var page in _spec.Pages)
+                            {
+                                var isEnabled = page.FeatureToggle == null || IsPageFeatureEnabled(page.Id);
+                                
+                                <div class="card bg-base-200 shadow-sm">
+                                    <div class="card-body p-4">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <h4 class="font-bold text-lg">@(page.Title)</h4>
+                                            @if (page.FeatureToggle != null)
+                                            {
+                                                @if (isEnabled)
+                                                {
+                                                    <span class="badge badge-success">Enabled</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge badge-ghost">Disabled</span>
+                                                }
+                                            }
+                                        </div>
+                                        
+                                        @if (isEnabled)
+                                        {
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                                                @foreach (var field in page.Fields)
+                                                {
+                                                    var value = GetStringValue(field.Id);
+                                                    @if (!string.IsNullOrWhiteSpace(value))
+                                                    {
+                                                        <div class="flex flex-col">
+                                                            <span class="text-base-content/60">@field.Label</span>
+                                                            @if (field.Type == "password")
+                                                            {
+                                                                <span class="font-medium">••••••••</span>
+                                                            }
+                                                            else if (field.Type == "bool")
+                                                            {
+                                                                <span class="font-medium">@(GetBoolValue(field.Id) ? "Yes" : "No")</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="font-medium">@value</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-sm text-base-content/60">This feature is disabled</p>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="divider"></div>
+
+                    <!-- Navigation Buttons -->
+                    <div class="flex justify-between items-center">
+                        <button class="btn btn-ghost" @onclick="PreviousPage">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                            Back to Edit
+                        </button>
+
+                        <button class="btn btn-success" 
+                                @onclick="Complete" 
+                                disabled="@_isCompleting">
+                            @if (_isCompleting)
+                            {
+                                <span class="loading loading-spinner"></span>
+                            }
+                            Confirm and Install
+                        </button>
                     </div>
                 }
             }
