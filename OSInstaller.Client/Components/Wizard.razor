@@ -66,8 +66,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             @foreach (var field in currentPage.Fields)
                             {
-                                var fullWidth = field.Type == "bool" || !string.IsNullOrEmpty(field.Description);
-                                <div class="form-control w-full @(fullWidth ? "md:col-span-2" : "")">
+                                <div class="form-control w-full @(ShouldFieldBeFullWidth(field) ? "md:col-span-2" : "")">
                                     <label class="label">
                                         <span class="label-text font-medium">
                                             @field.Label
@@ -288,6 +287,12 @@
             return error;
         }
         return null;
+    }
+
+    private bool ShouldFieldBeFullWidth(Field field)
+    {
+        // Boolean fields and fields with descriptions should span full width for better UX
+        return field.Type == "bool" || !string.IsNullOrEmpty(field.Description);
     }
 
     private bool IsPageValid(Page page)
