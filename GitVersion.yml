@@ -1,0 +1,38 @@
+mode: ContinuousDeployment
+branches:
+  main:
+    mode: ContinuousDeployment
+    tag: ''
+    increment: Patch
+    prevent-increment-of-merged-branch-version: true
+    track-merge-target: false
+    regex: ^main$
+    source-branches: []
+    tracks-release-branches: false
+    is-release-branch: true
+    is-mainline: true
+    pre-release-weight: 55000
+  develop:
+    mode: ContinuousDeployment
+    tag: alpha
+    increment: Patch
+    regex: ^dev(elop)?(ment)?$
+    source-branches: []
+    tracks-release-branches: true
+    is-release-branch: false
+    is-mainline: false
+    pre-release-weight: 0
+  feature:
+    mode: ContinuousDeployment
+    tag: useBranchName
+    increment: Inherit
+    regex: ^features?[/-]
+    source-branches:
+    - develop
+    tracks-release-branches: false
+    is-release-branch: false
+    is-mainline: false
+    pre-release-weight: 30000
+ignore:
+  sha: []
+merge-message-formats: {}
