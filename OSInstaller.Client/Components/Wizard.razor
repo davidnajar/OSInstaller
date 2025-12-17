@@ -1,10 +1,12 @@
 @using OSInstaller.Client.Models
 @using System.Text.Json
+@using Microsoft.JSInterop
 @inject HttpClient Http
+@inject IJSRuntime JSRuntime
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
-<div class="min-h-screen bg-base-200 flex items-center justify-center px-4 py-8">
-    <div class="card bg-base-100 shadow-xl w-full max-w-4xl">
+<div class="min-h-screen bg-base-200 flex items-center justify-center px-4 py-8" @onkeydown="HandleKeyDown">
+    <div class="card bg-base-100 shadow-xl w-full max-w-4xl" tabindex="0">
         <div class="card-body p-8 md:p-12">
             @if (_isLoading)
             {
@@ -36,23 +38,26 @@
                             @currentPage.Title
                         </li>
                     }
+                    <li class="step @(_state.CurrentPage >= _spec.Pages.Count ? "step-primary" : "")">
+                        Summary
+                    </li>
                 </ul>
 
                 <!-- Progress Bar -->
                 <div class="mb-6">
                     <progress class="progress progress-primary w-full" 
-                              value="@((_state.CurrentPage + 1) * 100 / _spec.Pages.Count)" 
+                              value="@((_state.CurrentPage + 1) * 100 / (_spec.Pages.Count + 1))" 
                               max="100"></progress>
                 </div>
 
-                <!-- Current Page -->
+                <!-- Current Page or Summary -->
                 @if (_state.CurrentPage < _spec.Pages.Count)
                 {
                     var currentPage = _spec.Pages[_state.CurrentPage];
                     <div class="mb-8">
                         <!-- Step Counter -->
                         <div class="text-sm text-base-content/60 mb-2">
-                            Step @(_state.CurrentPage + 1) of @_spec.Pages.Count
+                            Step @(_state.CurrentPage + 1) of @(_spec.Pages.Count + 1)
                         </div>
                         
                         <!-- Page Title and Description -->
@@ -62,8 +67,26 @@
                             <p class="text-base-content/60 mb-6">@currentPage.Description</p>
                         }
 
+                        <!-- Feature Toggle -->
+                        @if (currentPage.FeatureToggle != null)
+                        {
+                            <div class="card bg-base-200 shadow-sm mb-6 p-6">
+                                <div class="form-control">
+                                    <label class="label cursor-pointer justify-start gap-4">
+                                        <input type="checkbox" 
+                                               class="toggle toggle-lg toggle-primary"
+                                               checked="@IsPageFeatureEnabled(currentPage.Id)"
+                                               @onchange="@(e => TogglePageFeature(currentPage.Id, e.Value?.ToString() == "True"))" />
+                                        <span class="label-text text-lg font-semibold">@currentPage.FeatureToggle.Label</span>
+                                    </label>
+                                </div>
+                            </div>
+                        }
+
                         <!-- Fields -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        @if (currentPage.FeatureToggle == null || IsPageFeatureEnabled(currentPage.Id))
+                        {
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             @foreach (var field in currentPage.Fields)
                             {
                                 <div class="form-control w-full @(ShouldFieldBeFullWidth(field) ? "md:col-span-2" : "")">
@@ -89,6 +112,77 @@
                                                 <span class="label-text-alt text-base-content/60">@field.Description</span>
                                             }
                                         </div>
+                                    }
+                                    else if (field.Type == "password")
+                                    {
+                                        var passwordVisible = IsPasswordVisible(field.Id);
+                                        
+                                        <!-- Password input -->
+                                        <div class="relative">
+                                            <input type="@(passwordVisible ? "text" : "password")" 
+                                                   class="input input-bordered w-full pr-10 @(GetFieldErrorById(field.Id) != null ? "input-error" : "")"
+                                                   placeholder="@field.Placeholder"
+                                                   value="@GetStringValue(field.Id)"
+                                                   @onchange="@(e => SetValue(field.Id, e.Value?.ToString()))" />
+                                            <button type="button" 
+                                                    class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-sm btn-circle"
+                                                    @onclick="@(() => TogglePasswordVisibility(field.Id))">
+                                                @if (passwordVisible)
+                                                {
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                    </svg>
+                                                }
+                                                else
+                                                {
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                }
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Confirm password input -->
+                                        <label class="label">
+                                            <span class="label-text font-medium">
+                                                Confirm @field.Label
+                                                @if (field.Required)
+                                                {
+                                                    <span class="text-error ml-1">*</span>
+                                                }
+                                            </span>
+                                        </label>
+                                        <div class="relative">
+                                            <input type="@(passwordVisible ? "text" : "password")" 
+                                                   class="input input-bordered w-full pr-10 @(GetFieldErrorById(field.Id + "_confirm") != null ? "input-error" : "")"
+                                                   placeholder="@field.Placeholder"
+                                                   value="@GetStringValue(field.Id + "_confirm")"
+                                                   @onchange="@(e => SetValue(field.Id + "_confirm", e.Value?.ToString()))" />
+                                            <button type="button" 
+                                                    class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-sm btn-circle"
+                                                    @onclick="@(() => TogglePasswordVisibility(field.Id))">
+                                                @if (passwordVisible)
+                                                {
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                    </svg>
+                                                }
+                                                else
+                                                {
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                }
+                                            </button>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(field.Description))
+                                        {
+                                            <label class="label">
+                                                <span class="label-text-alt text-base-content/60">@field.Description</span>
+                                            </label>
+                                        }
                                     }
                                     else if (field.Type == "number")
                                     {
@@ -130,6 +224,16 @@
                                 </div>
                             }
                         </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-info">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span>This feature is disabled. Enable it above to configure.</span>
+                            </div>
+                        }
                     </div>
 
                     <!-- Divider -->
@@ -164,16 +268,105 @@
                         }
                         else
                         {
-                            <button class="btn btn-success" 
-                                    @onclick="Complete" 
-                                    disabled="@(_isCompleting || !IsPageValid(currentPage))">
-                                @if (_isCompleting)
-                                {
-                                    <span class="loading loading-spinner"></span>
-                                }
-                                Complete Installation
+                            <button class="btn btn-primary" 
+                                    @onclick="NextPage"
+                                    disabled="@(!IsPageValid(currentPage))">
+                                Review
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
                             </button>
                         }
+                    </div>
+                }
+                else if (_state.CurrentPage == _spec.Pages.Count)
+                {
+                    <!-- Summary Page -->
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold mb-2">Installation Summary</h3>
+                        <p class="text-base-content/60 mb-6">Please review your configuration before proceeding with the installation.</p>
+
+                        <!-- Summary Cards -->
+                        <div class="space-y-4">
+                            @foreach (var page in _spec.Pages)
+                            {
+                                var isEnabled = page.FeatureToggle == null || IsPageFeatureEnabled(page.Id);
+                                
+                                <div class="card bg-base-200 shadow-sm">
+                                    <div class="card-body p-4">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <h4 class="font-bold text-lg">@(page.Title)</h4>
+                                            @if (page.FeatureToggle != null)
+                                            {
+                                                @if (isEnabled)
+                                                {
+                                                    <span class="badge badge-success">Enabled</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge badge-ghost">Disabled</span>
+                                                }
+                                            }
+                                        </div>
+                                        
+                                        @if (isEnabled)
+                                        {
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                                                @foreach (var field in page.Fields)
+                                                {
+                                                    var value = GetStringValue(field.Id);
+                                                    @if (!string.IsNullOrWhiteSpace(value))
+                                                    {
+                                                        <div class="flex flex-col">
+                                                            <span class="text-base-content/60">@field.Label</span>
+                                                            @if (field.Type == "password")
+                                                            {
+                                                                <span class="font-medium">••••••••</span>
+                                                            }
+                                                            else if (field.Type == "bool")
+                                                            {
+                                                                <span class="font-medium">@(GetBoolValue(field.Id) ? "Yes" : "No")</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="font-medium">@value</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-sm text-base-content/60">This feature is disabled</p>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="divider"></div>
+
+                    <!-- Navigation Buttons -->
+                    <div class="flex justify-between items-center">
+                        <button class="btn btn-ghost" @onclick="PreviousPage">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                            Back to Edit
+                        </button>
+
+                        <button class="btn btn-success" 
+                                @onclick="Complete" 
+                                disabled="@_isCompleting">
+                            @if (_isCompleting)
+                            {
+                                <span class="loading loading-spinner"></span>
+                            }
+                            Confirm and Install
+                        </button>
                     </div>
                 }
             }
@@ -197,6 +390,7 @@
     private bool _isCompleting = false;
     private string? _error;
     private Dictionary<string, string?> _validationErrors = new();
+    private Dictionary<string, bool> _passwordVisibility = new(); // fieldId -> visible
 
     protected override async Task OnInitializedAsync()
     {
@@ -218,6 +412,15 @@
                 {
                     foreach (var page in _spec.Pages)
                     {
+                        // Initialize feature toggle state
+                        if (page.FeatureToggle != null)
+                        {
+                            if (!_state.PageFeatureEnabled.ContainsKey(page.Id))
+                            {
+                                _state.PageFeatureEnabled[page.Id] = page.FeatureToggle.Default;
+                            }
+                        }
+                        
                         foreach (var field in page.Fields)
                         {
                             if (!string.IsNullOrEmpty(field.DefaultValue))
@@ -280,6 +483,40 @@
         return false;
     }
 
+    private bool IsPageFeatureEnabled(string pageId)
+    {
+        if (_state.PageFeatureEnabled.TryGetValue(pageId, out var enabled))
+        {
+            return enabled;
+        }
+        // Default to true if not set (backward compatibility)
+        return true;
+    }
+
+    private void TogglePageFeature(string pageId, bool enabled)
+    {
+        _state.PageFeatureEnabled[pageId] = enabled;
+        _validationErrors.Clear();
+        _ = SaveStateAsync();
+    }
+
+    private bool IsPasswordVisible(string fieldId)
+    {
+        return _passwordVisibility.TryGetValue(fieldId, out var visible) && visible;
+    }
+
+    private void TogglePasswordVisibility(string fieldId)
+    {
+        if (_passwordVisibility.ContainsKey(fieldId))
+        {
+            _passwordVisibility[fieldId] = !_passwordVisibility[fieldId];
+        }
+        else
+        {
+            _passwordVisibility[fieldId] = true;
+        }
+    }
+
     private string? GetFieldError(Field field)
     {
         if (_validationErrors.TryGetValue(field.Id, out var error))
@@ -289,14 +526,29 @@
         return null;
     }
 
+    private string? GetFieldErrorById(string fieldId)
+    {
+        if (_validationErrors.TryGetValue(fieldId, out var error))
+        {
+            return error;
+        }
+        return null;
+    }
+
     private bool ShouldFieldBeFullWidth(Field field)
     {
-        // Boolean fields and fields with descriptions should span full width for better UX
-        return field.Type == "bool" || !string.IsNullOrEmpty(field.Description);
+        // Boolean fields, password fields, and fields with descriptions should span full width for better UX
+        return field.Type == "bool" || field.Type == "password" || !string.IsNullOrEmpty(field.Description);
     }
 
     private bool IsPageValid(Page page)
     {
+        // Skip validation if page feature is disabled
+        if (page.FeatureToggle != null && !IsPageFeatureEnabled(page.Id))
+        {
+            return true; // Disabled pages are always valid
+        }
+        
         // Check if all required fields are filled and valid without setting error messages
         foreach (var field in page.Fields)
         {
@@ -323,6 +575,25 @@
             {
                 return field.ErrorMessage ?? $"{field.Label} is required";
             }
+            else if (field.Type == "password")
+            {
+                // Check if passwords match (only if confirmation field has been filled)
+                if (_state.Values.ContainsKey(field.Id + "_confirm"))
+                {
+                    var confirmValue = GetStringValue(field.Id + "_confirm");
+                    if (!string.IsNullOrWhiteSpace(stringValue) && !string.IsNullOrWhiteSpace(confirmValue) && stringValue != confirmValue)
+                    {
+                        // Set error on confirmation field
+                        _validationErrors[field.Id + "_confirm"] = "Passwords do not match";
+                        return "Passwords do not match";
+                    }
+                    else
+                    {
+                        // Clear confirmation field error if passwords match
+                        _validationErrors.Remove(field.Id + "_confirm");
+                    }
+                }
+            }
             else if (field.Type == "ip" && !string.IsNullOrWhiteSpace(stringValue))
             {
                 if (!System.Net.IPAddress.TryParse(stringValue, out _))
@@ -338,11 +609,18 @@
                 }
             }
         }
+        
         return null;
     }
 
     private bool ValidatePage(Page page)
     {
+        // Skip validation if page feature is disabled
+        if (page.FeatureToggle != null && !IsPageFeatureEnabled(page.Id))
+        {
+            return true; // Disabled pages are always valid
+        }
+        
         bool isValid = true;
 
         foreach (var field in page.Fields)
@@ -367,6 +645,48 @@
         catch (Exception)
         {
             // Silently fail - state save is not critical
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        // Don't handle keyboard shortcuts when typing in an input field
+        if (e.CtrlKey || e.ShiftKey || e.MetaKey)
+        {
+            return;
+        }
+
+        // Enter key acts as "Next" button or "Complete" on summary page
+        if (e.Key == "Enter" && !e.AltKey)
+        {
+            if (_spec != null)
+            {
+                // If on summary page, complete installation
+                if (_state.CurrentPage == _spec.Pages.Count)
+                {
+                    if (!_isCompleting)
+                    {
+                        _ = Complete();
+                    }
+                }
+                // If on regular page, validate and move to next page or summary
+                else if (_state.CurrentPage < _spec.Pages.Count)
+                {
+                    var currentPage = _spec.Pages[_state.CurrentPage];
+                    if (IsPageValid(currentPage))
+                    {
+                        NextPage();
+                    }
+                }
+            }
+        }
+        // Alt+Backspace goes to previous page
+        else if (e.Key == "Backspace" && e.AltKey)
+        {
+            if (_state.CurrentPage > 0)
+            {
+                PreviousPage();
+            }
         }
     }
 

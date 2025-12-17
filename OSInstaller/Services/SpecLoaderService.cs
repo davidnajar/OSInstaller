@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using OSInstaller.Models;
 
 namespace OSInstaller.Services;
@@ -9,13 +10,18 @@ public class SpecLoaderService
     private readonly IWebHostEnvironment _environment;
     private readonly string[] _specDirectories;
 
-    public SpecLoaderService(ILogger<SpecLoaderService> logger, IWebHostEnvironment environment)
+    public SpecLoaderService(ILogger<SpecLoaderService> logger, IWebHostEnvironment environment, IOptions<InstallerOptions> options)
     {
         _logger = logger;
         _environment = environment;
         
+        // Use CLI-provided directories if available
+        if (options.Value.SpecDirectories != null && options.Value.SpecDirectories.Length > 0)
+        {
+            _specDirectories = options.Value.SpecDirectories;
+        }
         // In development, use example-specs directory
-        if (_environment.IsDevelopment())
+        else if (_environment.IsDevelopment())
         {
             var exampleSpecsPath = Path.Combine(_environment.ContentRootPath, "example-specs");
             _specDirectories = new[] { exampleSpecsPath };

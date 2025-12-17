@@ -1,0 +1,37 @@
+{
+  "contribId": "admin.auth",
+  "priority": 50,
+  "pages": [
+    {
+      "id": "admin",
+      "title": "Administrator Account",
+      "order": 5,
+      "description": "Configure the administrator account",
+      "fields": [
+        {
+          "id": "admin.username",
+          "label": "Admin Username",
+          "type": "text",
+          "required": true,
+          "jsonPath": "$.admin.username",
+          "defaultValue": "admin",
+          "placeholder": "admin"
+        },
+        {
+          "id": "admin.password",
+          "label": "Admin Password",
+          "type": "password",
+          "required": true,
+          "jsonPath": "$.admin.password",
+          "placeholder": "Enter a strong password"
+        }
+      ]
+    }
+  ],
+  "outputTemplatePatch": {
+    "admin": {
+      "username": "admin",
+      "password": ""
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "contribId": "vpn.feature",
+  "priority": 200,
+  "pages": [
+    {
+      "id": "vpn",
+      "title": "VPN Configuration",
+      "order": 30,
+      "description": "Configure VPN connection settings",
+      "featureToggle": {
+        "label": "Enable VPN",
+        "default": false
+      },
+      "fields": [
+        {
+          "id": "vpn.server.address",
+          "label": "VPN Server",
+          "type": "text",
+          "required": true,
+          "jsonPath": "$.vpn.server",
+          "placeholder": "vpn.example.com",
+          "description": "VPN server address"
+        },
+        {
+          "id": "vpn.port",
+          "label": "VPN Port",
+          "type": "number",
+          "required": true,
+          "jsonPath": "$.vpn.port",
+          "defaultValue": "1194",
+          "min": 1,
+          "max": 65535
+        }
+      ]
+    }
+  ],
+  "outputTemplatePatch": {
+    "vpn": {
+      "enabled": false,
+      "server": "",
+      "port": 1194
+    }
+  }
+}
